@@ -30,9 +30,13 @@ target_link_libraries(imgui
 )
 
 # --- MAIN APP ---
-add_executable(ArcaneDynamics src/main.cpp)
+add_executable(ArcaneDynamics 
+    src/main.cpp
+    src/GuiRender.cpp
+)
 
 target_include_directories(ArcaneDynamics PUBLIC
+    include
     dependencies/glad/include
     dependencies/imgui
     dependencies/imgui/backends
