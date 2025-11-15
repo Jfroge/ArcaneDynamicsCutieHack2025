@@ -1,5 +1,5 @@
-[submodule "build/dependencies/imgui"]
-	path = build/dependencies/imgui
+[submodule "dependencies/imgui"]
+	path = dependencies/imgui
 	url = https://github.com/ocornut/imgui.git
 [submodule "dependencies/glfw"]
 	path = dependencies/glfw
