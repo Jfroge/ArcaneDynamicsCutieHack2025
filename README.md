@@ -1,6 +1,8 @@
 # Arcane Dyanmics
-## By: James Mace, Kyce Harper
-## CS undergrads@UCR
+### By: James Mace, Kyce Harper
+### CS undergrads@UCR
+
+## How to Build
 
 
 ### Dependencies
