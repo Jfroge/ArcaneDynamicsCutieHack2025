@@ -35,6 +35,11 @@ add_executable(ArcaneDynamics
     src/GuiRender.cpp
 )
 
+add_executable(mathTest 
+    src/mathTest.cpp
+    src/ArcaneMath.cpp
+)
+
 target_include_directories(ArcaneDynamics PUBLIC
     include
     dependencies/glad/include
