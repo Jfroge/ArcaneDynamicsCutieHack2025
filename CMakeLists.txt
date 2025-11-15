@@ -23,6 +23,9 @@ add_library(imgui ${IMGUI_SOURCES})
 target_include_directories(imgui PUBLIC dependencies/imgui)
 target_include_directories(imgui PUBLIC dependencies/imgui/backends)
 
+# --- implot ---
+
+
 # imgui depends on glfw and glad
 target_link_libraries(imgui
     PUBLIC glfw
@@ -33,6 +36,12 @@ target_link_libraries(imgui
 add_executable(ArcaneDynamics 
     src/main.cpp
     src/GuiRender.cpp
+
+    dependencies/implot/implot.cpp
+    dependencies/implot/implot_items.cpp
+    dependencies/implot/implot.h
+
+
 )
 
 target_include_directories(ArcaneDynamics PUBLIC
@@ -40,6 +49,8 @@ target_include_directories(ArcaneDynamics PUBLIC
     dependencies/glad/include
     dependencies/imgui
     dependencies/imgui/backends
+    dependencies/implot
+
 )
 
 # Link all dependencies using keyword style

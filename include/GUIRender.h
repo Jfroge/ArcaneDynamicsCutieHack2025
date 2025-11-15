@@ -8,7 +8,9 @@ class GUIRender {
     public:
         void Init(GLFWwindow* window, const char* glsl_version);
         void NewFrame();
-        virtual void Update();
+        virtual void Update(GLFWwindow* window);
         void Render();
         void Shutdown();
+    private:
+        ImFont* customFont = nullptr;
 };
