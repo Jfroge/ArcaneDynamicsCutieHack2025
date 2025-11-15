@@ -11,5 +11,5 @@
 - cloned from github [https://github.com/ocornut/imgui.git]
 
 
-#### GLAD
-- cloned from github [https://github.com/Dav1dde/glad.git]
+#### GLFW
+- cloned from github [https://github.com/glfw/glfw.git]
