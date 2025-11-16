@@ -20,7 +20,11 @@ class ArcaneMath {
         bool thetaKnown;
         bool timeKnown;
     public:
+        // Fill the provided array with the current stored values in this order:
+        // [0]=gravity, [1]=yi, [2]=yf, [3]=vi, [4]=vf, [5]=d, [6]=theta, [7]=time
         ArcaneMath(float data[8], bool known[8]);
+        void writeToArray(float data[8]);
+
         void solve();
-        void print();
+        void print(); // for testing purposes
 };

@@ -17,4 +17,41 @@ int main() {
     test.print();
     test.solve();
     test.print();
+
+    // Reset arrays for the second test
+    for (int i = 0; i < 8; i++) {
+        data[i] = 0.0f;
+        known[i] = false;
+    }
+    
+    data[6] = 45; // theta = 45
+    known[6] = true;
+    data[3] = 20;
+    known[3] = true;
+
+    test = ArcaneMath(data, known);
+
+    test.print();
+    test.solve();
+    test.print();
+    
+    // Reset arrays for the second test
+    for (int i = 0; i < 8; i++) {
+        data[i] = 0.0f;
+        known[i] = false;
+    }
+    
+    data[6] = 45; // theta = 45
+    known[6] = true;
+    data[3] = 20; // vi
+    known[3] = true;
+    data[3] = 20; // yf
+    known[3] = true;
+
+    test = ArcaneMath(data, known);
+
+    test.print();
+    test.solve();
+    test.print();
+
 }
