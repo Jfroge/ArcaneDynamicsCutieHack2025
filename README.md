@@ -127,7 +127,7 @@ cmake ..
 ### **3. Compile**
 
 ```bash
-cmake --build .
+make
 ```
 
 ### **4. Run**
