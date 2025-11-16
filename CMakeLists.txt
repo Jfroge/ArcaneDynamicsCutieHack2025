@@ -36,6 +36,7 @@ target_link_libraries(imgui
 add_executable(ArcaneDynamics 
     src/main.cpp
     src/GuiRender.cpp
+    src/ArcaneMath.cpp
 
     dependencies/implot/implot.cpp
     dependencies/implot/implot_items.cpp

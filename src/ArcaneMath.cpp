@@ -48,6 +48,16 @@ ArcaneMath::ArcaneMath(float data[8], bool known[8]) {
     validate("theta", theta, thetaKnown);
     validate("time", time, timeKnown);
 
+    // Set default gravity and initial y if both are unknown
+    if (!gravityKnown){
+        gravity = 9.8f;
+        gravityKnown = true;
+    } 
+    if(!yiKnown) {
+        yi = 0.0f;
+        yiKnown = true;
+    }
+
     // If theta was provided in degrees, convert to radians now for internal use
     if (thetaKnown) {
         theta = degreesToRadians(theta);
@@ -124,6 +134,13 @@ void ArcaneMath::solve() {
             updated = true;
         }
 
+        // If final y position reaches ground (yf = 0) after traveling distance, projectile has landed
+        if (yfKnown && yf <= 0.0f && yf != yi && dKnown && d > EPS) {
+            yf = 0.0f;
+            // Stop further iterations to represent landing
+            updated = false;
+        }
+
         // Solve initial vertical position: yi = yf - vi*sin(theta)*t + 0.5*g*t^2
         if (!yiKnown && yfKnown && viKnown && timeKnown && gravityKnown && thetaKnown) {
             yi = yf - vi * std::sin(theta) * time + 0.5f * gravity * time * time;
@@ -170,6 +187,28 @@ void ArcaneMath::solve() {
             }
         }
 
+        // Special case: if final height unknown, solve for landing time by setting yf = 0 (ground)
+        if (!timeKnown && yiKnown && !yfKnown && viKnown && gravityKnown && thetaKnown) {
+            // Solve: 0 = yi + vi*sin(theta)*t - 0.5*g*t^2
+            // Rearrange: 0.5*g*t^2 - vi*sin(theta)*t - yi = 0
+            float a = 0.5f * gravity;
+            float b = -vi * std::sin(theta);
+            float c = -yi;
+
+            float disc = b*b - 4*a*c;
+            if (disc >= 0 && std::abs(a) > EPS) {
+                float t1 = (-b + std::sqrt(disc)) / (2*a);
+                float t2 = (-b - std::sqrt(disc)) / (2*a);
+                // Take the positive root (the landing time)
+                time = (t1 > EPS) ? t1 : t2;
+                if (time > EPS) {
+                    timeKnown = true;
+                    yfKnown = false; // Allow yf to be computed next iteration as 0
+                    updated = true;
+                }
+            }
+        }
+
         // --- Final velocity magnitude ---
 
         // Solve final velocity magnitude: vf = sqrt(vx^2 + vy^2)
@@ -195,4 +234,18 @@ void ArcaneMath::print() {
         std::cout << "g = " << gravity << ", yi = " << yi << ", yf = " << yf
                   << ", vi = " << vi << ", vf = " << vf << ", d = " << d
                   << ", theta = " << theta << ", t = " << time << std::endl;
+}
+
+// Copy the internal values into the provided array in the same ordering
+// used by the constructor: gravity, yi, yf, vi, vf, d, theta, time.
+void ArcaneMath::writeToArray(float data[8]) {
+    if (!data) return;
+    data[0] = gravity;
+    data[1] = yi;
+    data[2] = yf;
+    data[3] = vi;
+    data[4] = vf;
+    data[5] = d;
+    data[6] = theta;
+    data[7] = time;
 }
