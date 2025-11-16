@@ -1,7 +1,3 @@
-Got it\! I'll update the image tags in the README to reflect that the images are located in a folder named `resources`.
-
-Here is the updated README with the paths adjusted:
-
 # 🪄 **Arcane Dynamics: The Scroll of Kinematic Sorcery**
 
 Arcane Dynamics is a high-performance **C++ real-time 2D kinematics visualizer** wrapped in a fantasy “Arcane Dynamics” aesthetic. Built to help students learn projectile motion in a fun and engaging way, it blends physics, graphics, and interactivity—complete with a mage launching an animated fire projectile.
