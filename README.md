@@ -51,27 +51,7 @@ Careful use of ImGui fonts, color maps, and widget styling creates the unique iv
 
 ---
 
-## 🤯 **Challenges We Ran Into**
-
-### 🔧 **1. ARM64 / macOS Linker Errors**
-
-“Undefined symbols for architecture arm64” struck while integrating ImPlot on Apple Silicon.
-Solution: add ImPlot as a **Git submodule** and **explicitly add implot.cpp + implot_items.cpp** to the build target in *CMakeLists.txt*.
-
-### 🧪 **2. API Changes in ImPlot**
-
-Older tutorials used deprecated `ImPlot::BeginPlot`.
-We migrated to the modern two-step API:
-
-```cpp
-if (ImPlot::BeginPlot("Trajectory", size)) {
-    ImPlot::SetupAxes("X", "Y");
-    ...
-}
-ImPlot::EndPlot();
-```
-
-### ⚙️ **3. Styling Complexity**
+### ⚙️ **Styling Complexity**
 
 Creating an entire theme required deep understanding of
 `ImGui::PushFont`, `ImGuiStyle`, and state management for per-frame rendering.
@@ -100,7 +80,7 @@ Creating an entire theme required deep understanding of
 ## 🔮 **What’s Next**
 
 * **Interactive graph manipulation** (drag the launch angle or height directly)
-* **Save/load projectiles**
+* **Challenges as Predefined Problems**
 * **Export graphs as images**
 * **Add more magical effects and spell variations**
 
@@ -111,8 +91,8 @@ Creating an entire theme required deep understanding of
 ### 📥 **Clone the Repository**
 
 ```bash
-git clone --recursive https://github.com/your-username/ArcaneDynamics.git
-cd ArcaneDynamics
+git clone --recursive https://github.com/Jfroge/ArcaneDynamicsCutieHack2025.git
+cd ArcaneDynamicsCutieHack2025
 ```
 
 > ℹ️ **Important:**
