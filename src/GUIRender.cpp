@@ -121,8 +121,6 @@ void GUIRender::Update(GLFWwindow* window) {
     static int   num_path_samples        = 100;
     static float ground_epsilon          = -0.01f;
 
-    static bool g_ShowPlots = false;
-
     static double g_TimeStart = 0.0;
     static const double g_SimulationDuration = 8.0;
     static bool g_IsAnimationRunning = false; 
