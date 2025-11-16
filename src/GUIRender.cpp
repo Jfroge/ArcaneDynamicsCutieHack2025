@@ -107,12 +107,16 @@ void GUIRender::Update(GLFWwindow* window) {
     static float plot_v_data[100] = {0};
     static int plot_v_count = 0; 
 
-    static float ground_height_px        = 50.0f;
-    static float shooter_offset_x_px     = 50.0f;
-    static float shooter_width_px        = 30.0f;
-    static float shooter_height_px       = 200.0f;
+    static const float GROUND_HEIGHT = 50.0f;
+    static const float SHOOTER_OFFSET = 50.0f;
+    static const float SHOOTER_WIDTH = 50.0f;
 
-    static float fireball_radius_px      = 10.0f;
+    static float shooter_height_px       = 0.0f;
+
+    // Ball size expressed in meters (world units). The pixel radius is computed
+    // from the current px-per-meter scale so the ball appears proportionally
+    // correct when constant scale is enabled or when autoscaled.
+    static float FIREBALL_DIAMETER_M     = 0.5f; // default 0.5 meters diameter
     static float path_line_thickness_px  = 2.0f;
 
     static float padding_x_px            = 100.0f;
@@ -120,6 +124,10 @@ void GUIRender::Update(GLFWwindow* window) {
 
     static int   num_path_samples        = 100;
     static float ground_epsilon          = -0.01f;
+
+    // Constant-scale option (user requested): keep px per meter fixed across runs
+    static bool  g_UseConstantScale      = false;
+    static float g_ScalePxPerMeter       = 20.0f; // reasonable default
 
     static double g_TimeStart = 0.0;
     static const double g_SimulationDuration = 8.0;
@@ -140,57 +148,44 @@ void GUIRender::Update(GLFWwindow* window) {
         #define M_PI 3.14159265358979323846
     #endif
 
-    const float V0 = V0_MPS; 
-    const float Theta = THETA_DEG * (float)M_PI / 180.0f; // Convert to radians
-    const float G = G_MPS2;
-    
     // Generate path based on projectile physics
     auto CalculatePath = [&]() {
         g_PathX.clear();
         g_PathY.clear();
-    
-    // --- 1. Find the Exact Time of Impact (T_impact) ---
-    // The ground is y = 0. We solve the quadratic equation for t:
-    // 0 = H0_Meters + (V0*sin(Theta))*t - (0.5*G)*t^2
+
+        // Read current parameters from the mutable statics so animation matches solved values
+        const float V0 = V0_MPS;
+        const float Theta = THETA_DEG * (float)M_PI / 180.0f; // Convert to radians
+        const float G = G_MPS2;
+
+        // --- 1. Find the Exact Time of Impact (T_impact) ---
+        // Solve: 0 = H0_Meters + (V0*sin(Theta))*t - (0.5*G)*t^2
         float A = 0.5f * G;
         float B = V0 * sinf(Theta);
-        float C = H0_Meters; 
-    
-    // The discriminant: sqrt(B^2 + 4AC)
-        float discriminant = B * B + 4.0f * A * C; 
+        float C = H0_Meters;
 
+        float discriminant = B * B + 4.0f * A * C;
         float T_impact = 0.0f;
-        if (discriminant >= 0) {
-        // Use the positive root for time
-            T_impact = (B + sqrtf(discriminant)) / (2.0f * A); 
+        if (discriminant >= 0.0f && std::abs(A) > 1e-9f) {
+            T_impact = (B + sqrtf(discriminant)) / (2.0f * A);
         }
 
-    // --- 2. Set Max Simulation Time ---
-    // The simulation runs up to the shorter of the hardcoded duration or the calculated impact time.
-        float T_max = std::min((float)g_SimulationDuration, T_impact);
-    
-    // If the projectile never lands within the simulation duration, T_max remains T_impact 
-    // (or g_SimulationDuration if T_impact is very large/negative, though T_impact should be positive here).
-    
+        // --- 2. Set Max Simulation Time ---
+        float T_max = std::min((float)g_SimulationDuration, T_impact > 0.0f ? T_impact : (float)g_SimulationDuration);
+
         for (int i = 0; i < num_path_samples; ++i) {
             float t = T_max * (float(i) / (num_path_samples - 1));
-        
-        // Horizontal: (X is unchanged)
+
             float x = V0 * cosf(Theta) * t;
-        
-        // Vertical: Must include the initial height H0_Meters
             float y = H0_Meters + V0 * sinf(Theta) * t - 0.5f * G * t * t;
 
-        // Stop checking y < ground_epsilon since T_max already sets the boundary
-        // We only add points up to T_max.
-        
             g_PathX.push_back(x);
             g_PathY.push_back(y);
         }
-    
-    // Optional: Ensure the very last point is exactly on the ground if it hit.
-        if (T_impact <= g_SimulationDuration && T_impact > 0.0f) {
-            g_PathY.back() = 0.0f;
+
+        // If it hit within duration, snap last point to ground
+        if (T_impact > 0.0f && T_impact <= g_SimulationDuration) {
+            if (!g_PathY.empty()) g_PathY.back() = 0.0f;
         }
     };
 
@@ -263,6 +258,13 @@ void GUIRender::Update(GLFWwindow* window) {
             DrawInputRow("gravity(m/s^2)", &gravity_val, &gravity_checked);
             ImGui::Columns(1);
 
+            // Constant scale control: when enabled, animation and plots use this px/m value
+            ImGui::Checkbox("Constant scale (px/m)", &g_UseConstantScale);
+            if (g_UseConstantScale) {
+                ImGui::SameLine();
+                ImGui::SliderFloat("Scale", &g_ScalePxPerMeter, 1.0f, 200.0f);
+            }
+
             if(ImGui::Button("Run", ImVec2(-1, 0))){
                 float values[8];
                 bool isValid[8];
@@ -323,14 +325,79 @@ void GUIRender::Update(GLFWwindow* window) {
                     }
                 }
 
+                // Update shared simulation parameters so animation follows solved values
+                V0_MPS = initialVelocity_val;
+                THETA_DEG = theta_val;
+                H0_Meters = height_val;
+                G_MPS2 = gravity_val;
+
+                // Recompute the path for the simulation window
+                CalculatePath();
+
                 g_ShowPlots = true; 
+                g_IsAnimationRunning = true;
+                g_TimeStart = glfwGetTime();
             }
         }
         ImGui::EndChild();
 
         if (g_ShowPlots) {
             // Position V Time Graph (2/3 section of slice)
-            if (ImPlot::BeginPlot("Projectile Path (X vs Y)", ImVec2(-1, section_height))) {
+            float xmin=0.0f, xmax=0.0f, ymin=0.0f, ymax=0.0f;
+            float xpad = 0.0f, ypad = 0.0f;
+            if (plot_data_count > 0) {
+                xmin = plot_x_data[0]; xmax = plot_x_data[0];
+                ymin = plot_y_data[0]; ymax = plot_y_data[0];
+                for (int i = 1; i < plot_data_count; ++i) {
+                    xmin = std::min(xmin, plot_x_data[i]);
+                    xmax = std::max(xmax, plot_x_data[i]);
+                    ymin = std::min(ymin, plot_y_data[i]);
+                    ymax = std::max(ymax, plot_y_data[i]);
+                }
+                xpad = (xmax - xmin) * 0.1f;
+                if (xpad < 1e-3f) xpad = std::max(1.0f, (ymax - ymin) * 0.1f);
+                ypad = (ymax - ymin) * 0.1f;
+                if (ypad < 1e-3f) ypad = 1.0f;
+            }
+
+            // Disable the legend for this plot so the user cannot toggle the path on/off
+            if (ImPlot::BeginPlot("Projectile Path (X vs Y)", ImVec2(-1, section_height), ImPlotFlags_NoLegend)) {
+                // If constant scale is requested, set axis limits derived from px/m so
+                // the ImPlot axes use the same visual scaling as the simulation canvas.
+                if (g_UseConstantScale) {
+                    // Available plot size roughly equals sim window width/height used elsewhere
+                    float plot_avail_x = sim_window_width - padding_x_px;
+                    float plot_avail_y = section_height - padding_y_px;
+                    if (plot_avail_x < 1.0f) plot_avail_x = 1.0f;
+                    if (plot_avail_y < 1.0f) plot_avail_y = 1.0f;
+
+                    float x_range_m = plot_avail_x / g_ScalePxPerMeter;
+                    float y_range_m = plot_avail_y / g_ScalePxPerMeter;
+
+                    // Anchor the plot window to the data min so that the trajectory is visible
+                    // while preserving the fixed px/m scale. If the data extends beyond the
+                    // fixed window it will simply be clipped (consistent with constant scale).
+                    float x_anchor = (plot_data_count > 0) ? xmin : 0.0f;
+                    float y_anchor = (plot_data_count > 0) ? ymin : 0.0f;
+
+                    float x0 = x_anchor;
+                    float x1 = x_anchor + x_range_m;
+                    float y0 = y_anchor;
+                    float y1 = y_anchor + y_range_m;
+
+                    // Ensure a minimum vertical baseline of 0 so ground is visible
+                    if (y0 > 0.0f) y0 = 0.0f;
+
+                    ImPlot::SetupAxisLimits(ImAxis_X1, x0, x1, ImPlotCond_Always);
+                    ImPlot::SetupAxisLimits(ImAxis_Y1, y0, y1, ImPlotCond_Always);
+                } else {
+                    // If we computed ranges, lock the axis limits so ImPlot doesn't collapse a zero-width axis
+                    if (plot_data_count > 0) {
+                        ImPlot::SetupAxisLimits(ImAxis_X1, xmin - xpad, xmax + xpad, ImPlotCond_Always);
+                        ImPlot::SetupAxisLimits(ImAxis_Y1, ymin - ypad, ymax + ypad, ImPlotCond_Always);
+                    }
+                }
+
                 ImPlot::SetupAxes("Distance (m)", "Height (m)"); 
                 if (plot_data_count > 0) {
                     ImPlot::PlotLine("Path", plot_x_data, plot_y_data, plot_data_count);
@@ -338,7 +405,7 @@ void GUIRender::Update(GLFWwindow* window) {
                 ImPlot::EndPlot();
             }
     
-            if (ImPlot::BeginPlot("Velocity vs Time", ImVec2(-1, -1))) { 
+            if (ImPlot::BeginPlot("Velocity vs Time", ImVec2(-1, -1), ImPlotFlags_NoLegend)) { 
                 ImPlot::SetupAxes("Time (s)", "Velocity (m/s)"); 
                 if (plot_v_count > 0) {
                     ImPlot::PlotLine("Velocity", plot_t_data, plot_v_data, plot_v_count);
@@ -377,7 +444,7 @@ void GUIRender::Update(GLFWwindow* window) {
             IM_COL32(135, 206, 235, 255)
         );
 
-        float shooter_base_y = canvas_pos.y + canvas_size.y - ground_height_px;
+        float shooter_base_y = canvas_pos.y + canvas_size.y - GROUND_HEIGHT;
 
         // Ground
         draw_list->AddRectFilled(
@@ -386,15 +453,8 @@ void GUIRender::Update(GLFWwindow* window) {
             IM_COL32(50,40,30,255)
         );
 
-        // Shooter
-        float shooter_base_x = canvas_pos.x + shooter_offset_x_px;
-        float shooter_top_y  = shooter_base_y - shooter_height_px; // 🚀 NEW: Top Y position of shooter
-
-        draw_list->AddRectFilled(
-            ImVec2(shooter_base_x, shooter_top_y),
-            ImVec2(shooter_base_x + shooter_width_px, shooter_base_y),
-            IM_COL32(70,0,100,255)
-        );
+        // (Shooter will be drawn after we compute the px-per-meter scale so its
+        // displayed height matches the world initial height `H0_Meters`.)
 
         double current_time = glfwGetTime();
 
@@ -408,22 +468,58 @@ void GUIRender::Update(GLFWwindow* window) {
         }
 
 
+    // Recompute V0/Theta/G from the current UI-driven statics so animation follows inputs
+    const float V0 = V0_MPS;
+    const float Theta = THETA_DEG * (float)M_PI / 180.0f;
+    const float G = G_MPS2;
+
     float MaxX = (V0 * V0 * sinf(2.0f * Theta)) / G; 
     float MaxY_peak_above_launch = (V0 * V0 * sinf(Theta) * sinf(Theta)) / (2.0f * G);
 
-    float MaxTotalY_m = H0_Meters + MaxY_peak_above_launch; 
-    float MaxTotalX_m = MaxX * 1.05f; 
+    float MaxTotalY_m = H0_Meters + MaxY_peak_above_launch;
+    float MaxTotalX_m = MaxX * 1.05f;
 
     float avail_x = canvas_size.x - padding_x_px;
-    float avail_y = canvas_size.y - ground_height_px - padding_y_px;
+    float avail_y = canvas_size.y - GROUND_HEIGHT - padding_y_px;
 
-    float scale_px_per_meter = std::min(
-        avail_x / MaxTotalX_m,
-        avail_y / MaxTotalY_m
+    // Guard against zero horizontal extent (e.g. theta = 90 deg leads to MaxX == 0)
+    const float EPS_SCALE = 1e-6f;
+    if (MaxTotalY_m <= EPS_SCALE) MaxTotalY_m = 1.0f; // avoid div-by-zero
+
+    float scale_px_per_meter;
+    if (g_UseConstantScale) {
+        // Use the user-selected px per meter directly. This intentionally
+        // disables autoscaling so visual comparisons remain consistent.
+        scale_px_per_meter = g_ScalePxPerMeter;
+    } else {
+        if (MaxTotalX_m > EPS_SCALE) {
+            scale_px_per_meter = std::min(
+                avail_x / MaxTotalX_m,
+                avail_y / MaxTotalY_m
+            );
+        } else {
+            // No horizontal spread; scale using vertical extent only
+            scale_px_per_meter = avail_y / MaxTotalY_m;
+        }
+    }
+
+    float shooter_base_x = canvas_pos.x + SHOOTER_OFFSET;
+    // Compute shooter height in pixels from world units so the block visibly
+    // represents the initial height `H0_Meters`.
+    shooter_height_px = H0_Meters * scale_px_per_meter;
+    float max_shooter_height_px = canvas_size.y - GROUND_HEIGHT - padding_y_px;
+    if (shooter_height_px > max_shooter_height_px) shooter_height_px = max_shooter_height_px;
+    if (shooter_height_px < 0.0f) shooter_height_px = 0.0f;
+
+    float shooter_top_y = shooter_base_y - shooter_height_px;
+    draw_list->AddRectFilled(
+        ImVec2(shooter_base_x, shooter_top_y),
+        ImVec2(shooter_base_x + SHOOTER_WIDTH, shooter_base_y),
+        IM_COL32(70,0,100,255)
     );
 
     ImVec2 ground_origin_pix(
-        shooter_base_x + shooter_width_px / 2.0f,
+        shooter_base_x + SHOOTER_WIDTH / 2.0f,
         shooter_base_y                        
     );
 
@@ -445,6 +541,12 @@ void GUIRender::Update(GLFWwindow* window) {
         }
         
         ImVec2 draw_pos(x_pix, y_pix); 
+
+        // Compute pixel radius from world diameter and current scale
+        float fireball_radius_px = (FIREBALL_DIAMETER_M * 0.5f) * scale_px_per_meter;
+        // Clamp to reasonable visibility bounds
+        if (fireball_radius_px < 2.0f) fireball_radius_px = 2.0f;
+        if (fireball_radius_px > 200.0f) fireball_radius_px = 200.0f;
 
         if (t > 0.0f) {
             draw_list->AddCircleFilled(
