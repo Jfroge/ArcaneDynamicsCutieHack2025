@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <GLFW/glfw3.h>
 #include <vector> // Required for std::vector
+#include <cstring>
+#include <../include/ArcaneMath.h>
 
 void SetArcaneDynamicsStyle() {
     
@@ -94,6 +96,16 @@ void GUIRender::NewFrame() {
 }
 
 void GUIRender::Update(GLFWwindow* window) {
+    // Persistent state to control plot visibility
+    static bool g_ShowPlots = false;
+    // Persistent trajectory data arrays
+    static float plot_x_data[100] = {0};
+    static float plot_y_data[100] = {0};
+    static int plot_data_count = 0;
+    // Persistent velocity data arrays
+    static float plot_t_data[100] = {0};
+    static float plot_v_data[100] = {0};
+    static int plot_v_count = 0; 
 
     static float ground_height_px        = 50.0f;
     static float shooter_offset_x_px     = 50.0f;
@@ -221,15 +233,15 @@ void GUIRender::Update(GLFWwindow* window) {
             ImGui::TextWrapped("If You know the value enter the input then check the box");
             ImGui::Spacing();
 
-            // Original input variables kept for future problem-solving logic (not used for path calculation yet)
-            static float theta_val = 0; static bool theta_checked = false;
-            static float height_val = 0; static bool height_checked = false;
-            static float initialVelocity_val = 0; static bool initialVelocity_checked = false;
-            static float deltaX_val = 0; static bool deltaX_checked = false;
-            static float velocityFinal_val = 0; static bool velocityFinal_checked = false;
-            static float deltaY_val = 0; static bool deltaY_checked = false;
-            static float time_val = 0; static bool time_checked = false;
-
+            static float theta_val = 0.0f; static bool theta_checked = false;
+            static float height_val = 0.0f; static bool height_checked = false;
+            static float initialVelocity_val = 0.0f; static bool initialVelocity_checked = false;
+            static float deltaX_val = 0.0f; static bool deltaX_checked = false;
+            static float velocityFinal_val = 0.0f; static bool velocityFinal_checked = false;
+            static float deltaY_val = 0.0f; static bool deltaY_checked = false;
+            static float time_val = 0.0f; static bool time_checked = false;
+            static float gravity_val = 0.0f; static bool gravity_checked = false;
+            
             auto DrawInputRow = [](const char* label, float* value, bool* checked) {
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.4f);
                 ImGui::InputFloat(label, value);
@@ -249,31 +261,90 @@ void GUIRender::Update(GLFWwindow* window) {
 
             DrawInputRow("height(m)", &height_val, &height_checked);
             DrawInputRow("deltaX(m)", &deltaX_val, &deltaX_checked);
-            DrawInputRow("deltaY(m)", &deltaY_val, &deltaY_checked);
-
+            DrawInputRow("finalHeight(m)", &deltaY_val, &deltaY_checked);
+            DrawInputRow("gravity(m/s^2)", &gravity_val, &gravity_checked);
             ImGui::Columns(1);
 
-            if (ImGui::Button("Run", ImVec2(-1, 0))) {
-                g_ShowPlots = true;
-                CalculatePath();
-                g_IsAnimationRunning = true;
-                g_TimeStart = glfwGetTime();
+            if(ImGui::Button("Run", ImVec2(-1, 0))){
+                float values[8];
+                bool isValid[8];
+                // fill input values into arrays
+                values[0] = gravity_val;         isValid[0] = gravity_checked;
+                values[1] = height_val;          isValid[1] = height_checked;
+                values[2] = deltaY_val;          isValid[2] = deltaY_checked;
+                values[3] = initialVelocity_val; isValid[3] = initialVelocity_checked;
+                values[4] = velocityFinal_val;   isValid[4] = velocityFinal_checked;
+                values[5] = deltaX_val;          isValid[5] = deltaX_checked;
+                values[6] = theta_val;           isValid[6] = theta_checked;
+                values[7] = time_val;            isValid[7] = time_checked;
+                
+                // pass arrays into Arcane Math to solve for the unknown values
+                ArcaneMath newValues(values, isValid);
+                newValues.solve();
+                newValues.writeToArray(values);
+
+                // Update the UI static variables with the newly computed values
+                // Order: [0]=gravity, [1]=yi (height), [2]=yf (finalHeight), [3]=vi (initialV),
+                // [4]=vf (finalV), [5]=d (deltaX), [6]=theta, [7]=time
+                gravity_val = values[0];
+                height_val = values[1];
+                deltaY_val = values[2];
+                initialVelocity_val = values[3];
+                velocityFinal_val = values[4];
+                deltaX_val = values[5];
+                theta_val = values[6];
+                time_val = values[7];
+
+                // Generate trajectory data for plotting
+                // Convert theta back to radians for calculations
+                const float PI = 3.14159265358979323846f;
+                float theta_rad = theta_val * PI / 180.0f;
+                
+                plot_data_count = 0;
+                plot_v_count = 0;
+                float dt = time_val / 50.0f; // 50 points along the trajectory
+                if (dt > 0.0f && time_val > 0.0f) {
+                    for (int i = 0; i <= 50 && plot_data_count < 100; i++) {
+                        float t = i * dt;
+                        float x = initialVelocity_val * std::cos(theta_rad) * t;
+                        float y = height_val + initialVelocity_val * std::sin(theta_rad) * t 
+                                - 0.5f * gravity_val * t * t;
+                        plot_x_data[plot_data_count] = x;
+                        plot_y_data[plot_data_count] = std::max(y, 0.0f); // Clamp to ground
+                        
+                        // Compute velocity at this time
+                        float vx = initialVelocity_val * std::cos(theta_rad);
+                        float vy = initialVelocity_val * std::sin(theta_rad) - gravity_val * t;
+                        float v_magnitude = std::sqrt(vx*vx + vy*vy);
+                        
+                        plot_t_data[plot_v_count] = t;
+                        plot_v_data[plot_v_count] = v_magnitude;
+                        
+                        plot_data_count++;
+                        plot_v_count++;
+                    }
+                }
+
+                g_ShowPlots = true; 
             }
         }
         ImGui::EndChild();
 
         if (g_ShowPlots) {
-            if (ImPlot::BeginPlot("Projectile Path", ImVec2(-1, section_height))) {
-                // ... (Plotting logic is fine)
-                ImPlot::SetupAxes("Distance (m)", "Height (m)");
-                ImPlot::PlotLine("Path", x_data, y_proj, IM_ARRAYSIZE(x_data));
+            // Position V Time Graph (2/3 section of slice)
+            if (ImPlot::BeginPlot("Projectile Path (X vs Y)", ImVec2(-1, section_height))) {
+                ImPlot::SetupAxes("Distance (m)", "Height (m)"); 
+                if (plot_data_count > 0) {
+                    ImPlot::PlotLine("Path", plot_x_data, plot_y_data, plot_data_count);
+                }
                 ImPlot::EndPlot();
             }
-
-            if (ImPlot::BeginPlot("Velocity vs Time", ImVec2(-1,-1))) {
-                // ... (Plotting logic is fine)
-                ImPlot::SetupAxes("Time (s)", "Velocity (m/s)");
-                ImPlot::PlotLine("Velocity", x_data, y_vel, IM_ARRAYSIZE(y_vel));
+    
+            if (ImPlot::BeginPlot("Velocity vs Time", ImVec2(-1, -1))) { 
+                ImPlot::SetupAxes("Time (s)", "Velocity (m/s)"); 
+                if (plot_v_count > 0) {
+                    ImPlot::PlotLine("Velocity", plot_t_data, plot_v_data, plot_v_count);
+                }
                 ImPlot::EndPlot();
             }
         }
