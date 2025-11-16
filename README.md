@@ -62,8 +62,8 @@ The system was designed following a clear structure, which was documented using 
 
 ## ⭐ **Accomplishments We’re Proud Of**
 
-  * **Seamless physics + GUI integration** at 60+ FPS
-  * **Single-file executable** for ultra-simple distribution
+  * **Seamless physics + GUI integration**
+  * **Low-Level code**
   * **Complete fantasy aesthetic** with custom fonts and color transitions
   * **Robust architecture** built on CMake + Git submodules
   * **Polished UX** designed for students and non-technical users
